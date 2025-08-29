@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自定义开关控制 | myaaa项目</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 40px 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 350px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-weight: 600;
+            font-size: 1.8rem;
+        }
+        .status-text {
+            color: #666;
+            margin-bottom: 25px;
+            font-size: 1.1rem;
+        }
+        /* 自定义开关样式 */
+        .switch-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 120px;
+            height: 60px;
+            margin: 20px 0;
+        }
+        .switch-wrapper input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #e0e0e0;
+            transition: .4s;
+            border-radius: 60px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 52px;
+            width: 52px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        input:checked + .slider {
+            background-color: #4cd964;
+        }
+        input:checked + .slider:before {
+            transform: translateX(60px);
+        }
+        .connection-status {
+            margin-top: 25px;
+            font-size: 0.9rem;
+            color: #888;
+        }
+        .status-online {
+            color: #4cd964;
+        }
+        .status-offline {
+            color: #ff3b30;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>设备开关控制</h1>
+        <p class="status-text">当前状态：<span id="current-state">未知</span></p>
+        
+        <label class="switch-wrapper">
+            <input type="checkbox" id="device-switch">
+            <span class="slider"></span>
+        </label>
+        
+        <p class="connection-status">
+            连接状态：<span id="ws-status" class="status-offline">未连接</span>
+        </p>
+    </div>
+
+    <script>
+        // MixIO 配置（使用你的主题）
+        const MIXIO_WS_URL = 'ws://mixio.mixly.cn:8083'; // MixIO WebSocket 地址
+        const TOPIC = 'button'; // 开关组件消息主题
+
+        // DOM 元素
+        const switchEl = document.getElementById('device-switch');
+        const stateText = document.getElementById('current-state');
+        const wsStatusEl = document.getElementById('ws-status');
+
+        // WebSocket 连接
+        let ws;
+
+        // 初始化连接
+        function connectWebSocket() {
+            // 关闭现有连接
+            if (ws) ws.close();
+
+            // 创建新连接
+            ws = new WebSocket(MIXIO_WS_URL);
+
+            // 连接成功
+            ws.onopen = () => {
+                console.log('WebSocket 已连接');
+                wsStatusEl.textContent = '已连接';
+                wsStatusEl.className = 'status-online';
+            };
+
+            // 接收消息（设备状态更新）
+            ws.onmessage = (event) => {
+                const message = event.data.trim();
+                console.log('收到消息：', message);
+                
+                // 更新开关状态（1=开，0=关）
+                const isOn = message === '1';
+                switchEl.checked = isOn;
+                stateText.textContent = isOn ? '开启' : '关闭';
+            };
+
+            // 连接关闭
+            ws.onclose = () => {
+                console.log('WebSocket 已断开');
+                wsStatusEl.textContent = '已断开（尝试重连）';
+                wsStatusEl.className = 'status-offline';
+                // 自动重连
+                setTimeout(connectWebSocket, 3000);
+            };
+
+            // 连接错误
+            ws.onerror = (error) => {
+                console.error('WebSocket 错误：', error);
+                wsStatusEl.textContent = '连接错误';
+                wsStatusEl.className = 'status-offline';
+            };
+        }
+
+        // 发送控制指令
+        function sendCommand(state) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const command = state ? '1' : '0';
+                ws.send(command);
+                console.log('发送指令：', command);
+            } else {
+                alert('未连接到服务器，请稍后重试');
+            }
+        }
+
+        // 绑定开关事件
+        switchEl.addEventListener('change', (e) => {
+            sendCommand(e.target.checked);
+        });
+
+        // 初始连接
+        connectWebSocket();
+    </script>
+</body>
+</html>
